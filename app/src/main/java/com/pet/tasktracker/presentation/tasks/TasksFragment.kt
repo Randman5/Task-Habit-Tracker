@@ -3,6 +3,7 @@ package com.pet.tasktracker.presentation.tasks
 import android.os.Bundle
 import android.view.View
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,6 +52,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.setViewTreeLifecycleOwner
+import com.pet.domain.models.Task
 import com.pet.tasktracker.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -95,7 +99,7 @@ fun GetContent(viewModel: TasksViewmodel) {
             isDialogVisible = true
         }
         if (isDialogVisible) {
-            addTaskDialog(viewModel) {
+            TaskDialog(viewModel) {
                 isDialogVisible = false
             }
         }
@@ -110,13 +114,13 @@ fun TasksList(viewModel: TasksViewmodel) {
     val listState = rememberLazyListState()
 
     // Запоминаем предыдущий размер списка
-    val previousSize =  remember { mutableStateOf(tasks.size) }
+    val previousSize = remember { mutableIntStateOf(tasks.size) }
     LaunchedEffect(tasks.size) {
         // Если размер увеличился (добавили элемент)
-        if (tasks.size > previousSize.value) {
+        if (tasks.size > previousSize.intValue && previousSize.intValue > 0) {
             listState.scrollToItem(tasks.size - 1)
         }
-        previousSize.value = tasks.size
+        previousSize.intValue = tasks.size
     }
 
     LazyColumn(
@@ -126,23 +130,19 @@ fun TasksList(viewModel: TasksViewmodel) {
             .background(color = Color.White)
             .systemBarsPadding()
     ) {
-        items(items = tasks, key = { item: String -> item }) { item: String ->
-            Row(
+        items(items = tasks, key = { item: Task -> item.id!! }) { item: Task ->
+            SwipeToDismissItem(
+                item = item,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.DarkGray)
                     .padding(bottom = 10.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SwipeToDismissItem(
-                    item,
-                    modifier = Modifier.fillMaxWidth(),
-                    onRemove = {
-                        viewModel.deleteTask(item)
-                    }
-                )
-            }
+                onEdit = { isChecked ->
+                    viewModel.editTask(item.copy(checked = isChecked))
+                },
+                onRemove = {
+                    viewModel.deleteTask(item)
+                }
+            )
         }
     }
 }
@@ -172,7 +172,7 @@ fun ActionButtonAdd(onClick: () -> Unit) {
 }
 
 @Composable
-fun addTaskDialog(
+fun TaskDialog(
     viewmodel: TasksViewmodel,
     onDismiss: () -> Unit
 ) {
@@ -217,11 +217,13 @@ fun addTaskDialog(
 
 @Composable
 fun SwipeToDismissItem(
-    item: String,
+    item: Task,
     onRemove: () -> Unit,
+    onEdit: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
+//    val checkboxState = remember(item.id) { mutableStateOf(item.checked) }
 
     // Состояние, управляющее свайпом
     val dismissState = rememberSwipeToDismissBoxState(
@@ -270,15 +272,40 @@ fun SwipeToDismissItem(
         val isSwiping = dismissState.currentValue != SwipeToDismissBoxValue.Settled
         Surface(
             modifier = modifier
-                .padding(vertical = 2.dp, horizontal = 4.dp),
+                .padding(vertical = 2.dp, horizontal = 4.dp)
+                .border(
+                    width = 2.dp,
+                    color = Color.Blue,
+                    shape = MaterialTheme.shapes.small
+                ),
             shape = MaterialTheme.shapes.medium,
             tonalElevation = if (isSwiping) 8.dp else 0.dp,
             color = MaterialTheme.colorScheme.surface
         ) {
-            Text(
-                text = item,
-                modifier = Modifier.padding(16.dp)
-            )
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = item.name,
+                    modifier = Modifier
+                        .padding(start = 10.dp, end = 10.dp)
+                        .weight(0.8f)
+                        .fillMaxWidth()
+                )
+                Checkbox(
+                    checked = item.checked,
+                    onCheckedChange = {
+//                        checkboxState.value = it
+//                        onEdit(checkboxState.value)
+                        onEdit(it)
+                    },
+                    modifier = Modifier
+                        .weight(0.2f)
+                        .fillMaxWidth()
+                )
+            }
+
         }
     }
 }
